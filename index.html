@@ -3,119 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SISPRO v7.0 - Integrated School System</title>
+    <title>SISPRO v9.0 - Enterprise School System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>[x-cloak] { display: none !important; }</style>
 </head>
-<body class="bg-slate-50 font-sans" x-data="schoolApp()" x-init="initApp()">
+<body class="bg-[#F1F5F9] font-sans" x-data="sispro9()" x-init="init()">
 
-    <template x-if="!userSession">
-        <div class="fixed inset-0 bg-indigo-950 flex items-center justify-center p-6 z-[100]">
-            <div class="bg-white w-full max-w-md p-10 rounded-[40px] shadow-2xl">
-                <h2 class="text-3xl font-black text-center text-indigo-900 mb-8 italic">SISPRO LOGIN</h2>
-                <div class="space-y-4">
-                    <input type="email" x-model="loginEmail" placeholder="Email Staf" class="w-full border-2 rounded-2xl px-6 py-4 font-bold outline-indigo-500 transition focus:bg-white">
-                    <input type="password" x-model="loginPassword" placeholder="Password" class="w-full border-2 rounded-2xl px-6 py-4 font-bold outline-indigo-500 transition focus:bg-white">
-                    <button @click="handleLogin()" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-700 transition">Akses Sistem</button>
+    <!-- PORTAL PENCARIAN ORANG TUA (PUBLIC) -->
+    <template x-if="!session && !isStaffLogin">
+        <div class="min-h-screen flex items-center justify-center p-6 bg-indigo-900">
+            <div class="bg-white w-full max-w-2xl rounded-[3rem] p-12 shadow-2xl">
+                <div class="text-center mb-10">
+                    <h1 class="text-3xl font-black italic text-indigo-900 uppercase">SIS<span class="text-indigo-500">PRO</span> ORTU</h1>
+                    <p class="text-slate-400 font-bold text-xs mt-2 uppercase tracking-widest">Cek Kehadiran & Nilai Anak</p>
                 </div>
-                <p class="text-center text-slate-400 text-[10px] mt-6 font-bold uppercase tracking-widest italic">Protected by Supabase Auth</p>
+                <div class="flex gap-4 mb-8">
+                    <input type="text" x-model="searchNISN" placeholder="Masukkan NISN Siswa..." class="flex-1 bg-slate-50 border-4 border-slate-100 rounded-3xl px-8 py-5 font-bold outline-indigo-500 transition">
+                    <button @click="parentSearch()" class="bg-indigo-600 text-white px-10 py-5 rounded-3xl font-black uppercase hover:bg-indigo-700 shadow-xl transition">Cari</button>
+                </div>
+
+                <!-- Hasil Pencarian -->
+                <template x-if="searchResult">
+                    <div class="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+                        <div class="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 flex justify-between items-center">
+                            <div>
+                                <p class="text-[10px] font-black text-indigo-400 uppercase">Nama Siswa</p>
+                                <p class="text-xl font-black text-indigo-900" x-text="searchResult.nama"></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] font-black text-indigo-400 uppercase">Kelas ID</p>
+                                <p class="text-xl font-black text-indigo-900" x-text="searchResult.id_kelas"></p>
+                            </div>
+                        </div>
+                        <!-- Statistik Kehadiran -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="p-6 bg-white border-2 rounded-3xl text-center">
+                                <p class="text-[10px] font-black text-slate-400 uppercase">Total Hadir</p>
+                                <p class="text-3xl font-black text-emerald-600" x-text="rekap.hadir"></p>
+                            </div>
+                            <div class="p-6 bg-white border-2 rounded-3xl text-center">
+                                <p class="text-[10px] font-black text-slate-400 uppercase">Nilai Di Bawah KKM</p>
+                                <p class="text-3xl font-black text-rose-600" x-text="rekap.nilaiMerah"></p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="mt-12 text-center border-t pt-6">
+                    <button @click="isStaffLogin = true" class="text-slate-300 font-bold text-[10px] uppercase hover:text-indigo-600 transition">Portal Staff & Guru <i class="fas fa-arrow-right ml-1"></i></button>
+                </div>
             </div>
         </div>
     </template>
 
-    <div class="flex min-h-screen" x-show="userSession" x-cloak>
-        <aside class="w-72 bg-indigo-950 text-white flex flex-col sticky top-0 h-screen shadow-2xl overflow-y-auto">
-            <div class="p-8">
-                <div class="flex items-center gap-3 mb-10">
-                    <div class="bg-yellow-400 p-2 rounded-xl"><i class="fas fa-graduation-cap text-indigo-950 text-xl"></i></div>
-                    <h1 class="font-black text-2xl tracking-tighter italic uppercase">SIS<span class="text-yellow-400">PRO</span></h1>
+    <!-- DASHBOARD UTAMA (STAFF) -->
+    <div class="flex min-h-screen" x-show="session" x-cloak>
+        <!-- Sidebar -->
+        <aside class="w-72 bg-slate-900 text-white flex flex-col sticky top-0 h-screen shadow-2xl">
+            <div class="p-8 flex-1">
+                <div class="flex items-center gap-3 mb-12">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center rotate-3"><i class="fas fa-graduation-cap"></i></div>
+                    <span class="font-black text-xl italic uppercase tracking-tighter">SIS<span class="text-indigo-400">PRO</span></span>
                 </div>
                 <nav class="space-y-1">
-                    <template x-for="menu in sidebarMenus">
-                        <button x-show="!isPustakawan() || ['dashboard', 'perpustakaan'].includes(menu.id)"
-                                @click="activeTab = menu.id" 
-                                :class="activeTab === menu.id ? 'bg-white/10 text-yellow-400 border-l-4 border-yellow-400' : 'text-slate-400 border-l-4 border-transparent'"
-                                class="w-full flex items-center gap-4 px-6 py-4 font-black text-[10px] uppercase tracking-widest transition hover:text-white">
-                            <i :class="menu.icon" class="w-5 text-center text-sm"></i>
-                            <span x-text="menu.label"></span>
+                    <template x-for="m in filteredMenus">
+                        <button @click="activeTab = m.id; fetchData()" :class="activeTab === m.id ? 'bg-indigo-600 shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition">
+                            <i :class="m.icon" class="w-5"></i> <span x-text="m.label"></span>
                         </button>
                     </template>
                 </nav>
             </div>
-            <div class="mt-auto p-8 border-t border-white/5 bg-black/20 text-center">
-                <p class="text-[9px] text-yellow-400 uppercase font-black mb-3" x-text="isPustakawan() ? 'Role: Pustakawan' : 'Role: Administrator'"></p>
-                <button @click="handleLogout()" class="w-full bg-red-500/10 text-red-500 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition">Logout</button>
-            </div>
+            <button @click="logout()" class="m-8 p-4 bg-red-500/10 text-red-500 rounded-2xl font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition">Sign Out</button>
         </aside>
 
+        <!-- Main Content -->
         <main class="flex-1 p-10 overflow-y-auto">
-            <header class="flex justify-between items-center mb-10">
-                <h2 class="text-4xl font-black text-slate-800 italic uppercase tracking-tighter" x-text="getCurrentMenuLabel()"></h2>
-                <div class="bg-white px-6 py-3 rounded-2xl shadow-sm border font-black text-[10px] uppercase tracking-widest text-indigo-600" x-text="todayDate"></div>
+            <header class="flex justify-between items-end mb-10">
+                <div>
+                    <h2 class="text-4xl font-black text-slate-800 uppercase italic tracking-tighter" x-text="activeTab.replace('-',' ')"></h2>
+                    <p class="text-[10px] font-black text-slate-400 tracking-[0.3em] mt-2 uppercase" x-text="'Role: ' + roleName"></p>
+                </div>
+                <div class="flex gap-3">
+                    <button @click="exportData()" class="bg-white border-2 text-slate-600 px-6 py-4 rounded-2xl font-black text-[10px] uppercase"><i class="fas fa-download mr-2"></i> Export PDF</button>
+                    <button x-show="roleName === 'admin'" @click="triggerImport()" class="bg-indigo-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-indigo-200"><i class="fas fa-file-import mr-2"></i> Import Excel</button>
+                    <input type="file" id="importFile" @change="handleImport" class="hidden" accept=".xlsx">
+                </div>
             </header>
 
-            <div x-show="activeTab === 'dashboard'" class="space-y-10">
-                <div class="grid grid-cols-2 gap-8">
-                    <div class="bg-white p-10 rounded-[40px] border shadow-sm h-80 flex flex-col">
-                        <h4 class="font-black text-slate-400 text-[10px] uppercase tracking-[0.2em] mb-4">Statistik Kehadiran</h4>
-                        <div class="flex-1"><canvas id="absensiPieChart"></canvas></div>
-                    </div>
-                    <div class="bg-white p-10 rounded-[40px] border shadow-sm h-80 flex flex-col">
-                        <h4 class="font-black text-slate-400 text-[10px] uppercase tracking-[0.2em] mb-4">Rata-rata Nilai</h4>
-                        <div class="flex-1"><canvas id="nilaiBarChart"></canvas></div>
+            <!-- KONTEN DINAMIS -->
+            <!-- 1. Admin: Manajemen Siswa -->
+            <div x-show="activeTab === 'siswa-master'" class="space-y-6">
+                <!-- Manual Input -->
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                    <h3 class="text-xs font-black uppercase text-indigo-500 mb-6 tracking-widest">Input Siswa Manual</h3>
+                    <div class="grid grid-cols-4 gap-4">
+                        <input type="text" x-model="form.nisn" placeholder="NISN" class="bg-slate-50 border rounded-2xl px-5 py-3 font-bold outline-indigo-500">
+                        <input type="text" x-model="form.nama" placeholder="Nama Lengkap" class="bg-slate-50 border rounded-2xl px-5 py-3 font-bold outline-indigo-500">
+                        <input type="number" x-model="form.id_kelas" placeholder="ID Kelas" class="bg-slate-50 border rounded-2xl px-5 py-3 font-bold outline-indigo-500">
+                        <button @click="saveManual()" class="bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase shadow-xl hover:bg-indigo-700 transition">Simpan</button>
                     </div>
                 </div>
-            </div>
 
-            <div x-show="activeTab === 'siswa'" class="bg-white rounded-[40px] border shadow-sm overflow-hidden">
-                <div class="p-8 border-b bg-slate-50/50 flex justify-between items-center">
-                    <input type="text" x-model="searchSiswa" placeholder="Cari Siswa..." class="bg-white border rounded-xl px-5 py-3 text-sm font-bold w-72 outline-indigo-500">
-                    <button class="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black text-[10px] uppercase">+ Tambah Siswa</button>
-                </div>
-                <table class="w-full text-left">
-                    <thead class="bg-white border-b text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        <tr><th class="px-8 py-6">Nama Siswa</th><th class="px-8 py-6">Kelas</th><th class="px-8 py-6">Orang Tua</th><th class="px-8 py-6 text-center">Aksi</th></tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        <template x-for="s in filteredSiswa" :key="s.nisn">
-                            <tr class="hover:bg-slate-50 transition">
-                                <td class="px-8 py-4 font-bold text-slate-700" x-text="s.nama"></td>
-                                <td class="px-8 py-4"><span class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-lg font-black text-[10px]" x-text="s.kelas"></span></td>
-                                <td class="px-8 py-4 text-xs font-bold text-slate-400" x-text="s.no_wa_ortu || '-'"></td>
-                                <td class="px-8 py-4 text-center">
-                                    <template x-if="s.no_wa_ortu">
-                                        <a :href="'https://wa.me/' + formatPhone(s.no_wa_ortu)" target="_blank" class="bg-emerald-500 text-white p-2 rounded-lg hover:bg-emerald-600 transition"><i class="fab fa-whatsapp"></i></a>
-                                    </template>
-                                </td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
-
-            <div x-show="activeTab === 'perpustakaan'" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-indigo-600 p-8 rounded-[35px] text-white shadow-xl shadow-indigo-100">
-                        <p class="text-[10px] font-black opacity-60 uppercase mb-1">Total Buku</p>
-                        <p class="text-3xl font-black" x-text="dataBuku.length"></p>
-                    </div>
-                </div>
-                <div class="bg-white rounded-[40px] border shadow-sm overflow-hidden">
+                <!-- Table -->
+                <div class="bg-white rounded-[2.5rem] shadow-sm border overflow-hidden">
                     <table class="w-full text-left">
                         <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            <tr><th class="px-8 py-6">Judul Buku</th><th class="px-8 py-6">ISBN</th><th class="px-8 py-6">Kategori</th><th class="px-8 py-6 text-center">Stok</th></tr>
+                            <tr>
+                                <th class="px-8 py-6">NISN</th>
+                                <th class="px-8 py-6">Nama</th>
+                                <th class="px-8 py-6">Kelas</th>
+                                <th class="px-8 py-6">Aksi</th>
+                            </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <template x-for="b in dataBuku" :key="b.id">
+                        <tbody class="divide-y">
+                            <template x-for="s in items" :key="s.nisn">
                                 <tr class="hover:bg-slate-50 transition">
-                                    <td class="px-8 py-4 font-black text-slate-700 text-sm" x-text="b.judul"></td>
-                                    <td class="px-8 py-4 text-xs text-slate-400 font-mono" x-text="b.isbn"></td>
-                                    <td class="px-8 py-4 uppercase text-[10px] font-black text-indigo-500" x-text="b.kategori"></td>
-                                    <td class="px-8 py-4 text-center font-black" x-text="b.stok"></td>
+                                    <td class="px-8 py-4 font-black text-indigo-600" x-text="s.nisn"></td>
+                                    <td class="px-8 py-4 font-bold text-slate-700" x-text="s.nama"></td>
+                                    <td class="px-8 py-4"><span class="bg-slate-100 px-3 py-1 rounded-lg text-[10px] font-black" x-text="s.id_kelas"></span></td>
+                                    <td class="px-8 py-4">
+                                        <button @click="deleteItem(s.nisn)" class="text-rose-500 hover:scale-110 transition"><i class="fas fa-trash"></i></button>
+                                    </td>
                                 </tr>
                             </template>
                         </tbody>
@@ -123,55 +137,137 @@
                 </div>
             </div>
 
+            <!-- 2. Wali/Guru: Absensi Area -->
+            <div x-show="activeTab === 'absensi'" class="bg-white rounded-[3rem] p-10 border shadow-sm">
+                <div class="flex justify-between mb-8">
+                    <h3 class="font-black italic text-slate-800">Lembar Kehadiran Harian</h3>
+                    <input type="date" x-model="absenDate" class="border rounded-xl px-4 py-2 font-bold">
+                </div>
+                <div class="space-y-4">
+                    <template x-for="s in items">
+                        <div class="flex items-center justify-between p-5 bg-slate-50 rounded-[2rem] border border-slate-100 hover:bg-white transition group">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center font-black text-indigo-600 shadow-sm" x-text="s.nama[0]"></div>
+                                <div>
+                                    <p class="font-black text-slate-800" x-text="s.nama"></p>
+                                    <p class="text-[10px] font-bold text-slate-400" x-text="s.nisn"></p>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <template x-for="st in ['Hadir', 'Izin', 'Sakit', 'Alpha']">
+                                    <button @click="submitAbsen(s.nisn, st)" class="px-5 py-2 rounded-xl font-black text-[9px] uppercase transition border-2" :class="st === 'Hadir' ? 'hover:bg-emerald-500 hover:text-white border-emerald-500 text-emerald-600' : 'hover:bg-rose-500 hover:text-white border-rose-500 text-rose-600'" x-text="st"></button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
         </main>
     </div>
 
-    <script>
-        const SB_URL = "https://rrocxrcvkmnbznkifvzo.supabase.co"; 
-        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyb2N4cmN2a21uYnpua2lmdnpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MDk0NTYsImV4cCI6MjA5MzM4NTQ1Nn0.eOa6GTEbxoJ0tK-zhan-lUZp9WEd_OqnMQjN7-L4QXY";
-        const _supabase = supabase.createClient(SB_URL, SB_KEY);
+    <!-- STAFF LOGIN MODAL -->
+    <template x-if="isStaffLogin && !session">
+        <div class="fixed inset-0 bg-indigo-950 flex items-center justify-center p-6 z-[100]">
+            <div class="bg-white w-full max-w-md p-12 rounded-[3rem] relative">
+                <button @click="isStaffLogin = false" class="absolute top-8 right-8 text-slate-300 hover:text-slate-800"><i class="fas fa-times-circle text-2xl"></i></button>
+                <h2 class="text-3xl font-black text-indigo-900 mb-8 italic uppercase">Staff Login</h2>
+                <div class="space-y-4">
+                    <input type="email" x-model="login.email" placeholder="Email Staff" class="w-full bg-slate-50 border-2 rounded-2xl px-6 py-4 font-bold outline-indigo-500">
+                    <input type="password" x-model="login.password" placeholder="Password" class="w-full bg-slate-50 border-2 rounded-2xl px-6 py-4 font-bold outline-indigo-500">
+                    <button @click="handleStaffLogin()" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase shadow-xl hover:bg-indigo-700 transition">Sign In</button>
+                </div>
+            </div>
+        </div>
+    </template>
 
-        function schoolApp() {
+    <script>
+        const SB_URL = "https://rrocxrcvkmnbznkifvzo.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyb2N4cmN2a21uYnpua2lmdnpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4MDk0NTYsImV4cCI6MjA5MzM4NTQ1Nn0.eOa6GTEbxoJ0tK-zhan-lUZp9WEd_OqnMQjN7-L4QXY";
+        const _sb = supabase.createClient(SB_URL, SB_KEY);
+
+        function sispro9() {
             return {
-                userSession: null, activeTab: 'dashboard',
-                loginEmail: '', loginPassword: '',
-                dataSiswa: [], dataBuku: [], searchSiswa: '',
-                todayDate: new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-                sidebarMenus: [
-                    { id: 'dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
-                    { id: 'siswa', label: 'Data Siswa', icon: 'fas fa-user-graduate' },
-                    { id: 'perpustakaan', label: 'Perpustakaan', icon: 'fas fa-book' },
-                    { id: 'pengumuman', label: 'Pengumuman', icon: 'fas fa-bullhorn' }
+                session: null, isStaffLogin: false, activeTab: 'dashboard', roleName: 'admin',
+                login: { email: '', password: '' }, searchNISN: '', searchResult: null,
+                items: [], form: { nisn: '', nama: '', id_kelas: '' },
+                rekap: { hadir: 0, nilaiMerah: 0 },
+                absenDate: new Date().toISOString().split('T')[0],
+                menus: [
+                    { id: 'dashboard', label: 'Dashboard', icon: 'fas fa-th-large', roles: ['admin','wali','guru'] },
+                    { id: 'siswa-master', label: 'Data Master', icon: 'fas fa-database', roles: ['admin'] },
+                    { id: 'absensi', label: 'Absensi', icon: 'fas fa-calendar-check', roles: ['admin','wali','guru'] },
+                    { id: 'nilai-akademik', label: 'Nilai', icon: 'fas fa-star', roles: ['admin','guru'] }
                 ],
-                async initApp() {
-                    const { data: { session } } = await _supabase.auth.getSession();
-                    this.userSession = session?.user || null;
-                    if(this.userSession) {
-                        this.fetchAllData();
-                        this.initCharts();
-                    }
+
+                async init() {
+                    const { data: { session } } = await _sb.auth.getSession();
+                    this.session = session;
+                    if(session) this.fetchRole();
                 },
-                async handleLogin() {
-                    const { data, error } = await _supabase.auth.signInWithPassword({ email: this.loginEmail, password: this.loginPassword });
-                    if (error) alert("Gagal login: " + error.message); else location.reload();
+
+                get filteredMenus() {
+                    return this.menus.filter(m => m.roles.includes(this.roleName));
                 },
-                handleLogout() { _supabase.auth.signOut(); location.reload(); },
-                async fetchAllData() {
-                    let { data: s } = await _supabase.from('students').select('*').order('nama'); this.dataSiswa = s || [];
-                    let { data: b } = await _supabase.from('books').select('*').order('judul'); this.dataBuku = b || [];
+
+                // 1. PENCARIAN ORANG TUA (PUBLIC)
+                async parentSearch() {
+                    const { data: s } = await _sb.from('siswa').select('*').eq('nisn', this.searchNISN).single();
+                    if(s) {
+                        this.searchResult = s;
+                        const { data: a } = await _sb.from('absensi').select('status').eq('nisn', s.nisn);
+                        const { data: n } = await _sb.from('nilai').select('skor').eq('nisn', s.nisn);
+                        this.rekap.hadir = a?.filter(x => x.status === 'Hadir').length || 0;
+                        this.rekap.nilaiMerah = n?.filter(x => x.skor < 75).length || 0;
+                    } else { alert("Data tidak ditemukan!"); }
                 },
-                get filteredSiswa() {
-                    return this.dataSiswa.filter(s => s.nama.toLowerCase().includes(this.searchSiswa.toLowerCase()));
+
+                // 2. IMPORT EXCEL
+                triggerImport() { document.getElementById('importFile').click(); },
+                handleImport(e) {
+                    const file = e.target.files[0];
+                    const reader = new FileReader();
+                    reader.onload = async (evt) => {
+                        const bstr = evt.target.result;
+                        const wb = XLSX.read(bstr, { type: 'binary' });
+                        const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                        const { error } = await _sb.from('siswa').insert(data);
+                        if(!error) { alert("Import Berhasil!"); this.fetchData(); }
+                        else { alert("Error: " + error.message); }
+                    };
+                    reader.readAsBinaryString(file);
                 },
-                isPustakawan() { return this.userSession?.email.includes('pustaka'); },
-                formatPhone(p) { return p.startsWith('0') ? '62' + p.slice(1) : p; },
-                initCharts() {
-                    this.$nextTick(() => {
-                        new Chart(document.getElementById('absensiPieChart'), { type: 'doughnut', data: { labels: ['Hadir', 'Izin', 'Alpa'], datasets: [{ data: [90, 5, 5], backgroundColor: ['#6366f1', '#fbbf24', '#ef4444'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } } });
-                        new Chart(document.getElementById('nilaiBarChart'), { type: 'bar', data: { labels: ['7A', '7B', '8A', '8B', '9A', '9B'], datasets: [{ label: 'Rata-rata', data: [82, 79, 85, 80, 88, 84], backgroundColor: '#6366f1', borderRadius: 10 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+
+                // 3. EXPORT PDF
+                exportData() {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    doc.text("Laporan Siswa - SISPRO v9.0", 14, 15);
+                    doc.autoTable({
+                        startY: 20,
+                        head: [['NISN', 'Nama Siswa', 'Kelas']],
+                        body: this.items.map(s => [s.nisn, s.nama, s.id_kelas])
                     });
+                    doc.save("Laporan_Siswa.pdf");
                 },
-                getCurrentMenuLabel() { return this.sidebarMenus.find(m => m.id === this.activeTab)?.label; }
+
+                // 4. CRUD & AUTH
+                async fetchData() {
+                    const { data } = await _sb.from('siswa').select('*').order('nama');
+                    this.items = data || [];
+                },
+                async saveManual() {
+                    await _sb.from('siswa').insert([this.form]);
+                    this.form = { nisn: '', nama: '', id_kelas: '' };
+                    this.fetchData();
+                },
+                async deleteItem(id) {
+                    if(confirm("Hapus?")) { await _sb.from('siswa').delete().eq('nisn', id); this.fetchData(); }
+                },
+                async handleStaffLogin() {
+                    const { error } = await _sb.auth.signInWithPassword(this.login);
+                    if(!error) location.reload(); else alert("Login Gagal!");
+                },
+                logout() { _sb.auth.signOut(); location.reload(); }
             }
         }
     </script>
